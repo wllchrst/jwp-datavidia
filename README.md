@@ -1,4 +1,4 @@
-# JWT - Datavidia Competition
+# JWP - Datavidia Competition
 
 Owners: 
 - Janice Ashley Kurniawan
