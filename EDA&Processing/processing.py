@@ -98,7 +98,7 @@ def get_global_commodity_data() -> pd.DataFrame:
         pd.DataFrame: Joined and processed DataFrame
     """
     csv_files = os.listdir(GLOBAL_COMMODITY_FOLDER)
-    final_df = None
+    joined_dataset = None
 
     for csv in csv_files:
         path = f'{GLOBAL_COMMODITY_FOLDER}/{csv}'
@@ -108,11 +108,28 @@ def get_global_commodity_data() -> pd.DataFrame:
         clean_df = clean_data(df)
         clean_df = fill_missing_dates(clean_df)
 
-        final_df = clean_df if final_df is None else pd.concat([final_df, clean_df], ignore_index=True)
+        joined_dataset = clean_df if joined_dataset is None else pd.concat([joined_dataset, clean_df], ignore_index=True)
+        
+    joined_dataset["Vol."] = joined_dataset["Vol."].str.replace("K", "").astype(float) * 1000
+    joined_dataset["Change %"] = joined_dataset["Change %"].str.replace("%", "").astype(float)
+    cols_to_convert = ["Price", "Open", "High", "Low"]
+    joined_dataset[cols_to_convert] = joined_dataset[cols_to_convert].apply(pd.to_numeric, errors="coerce")
+    
+    joined_dataset = joined_dataset.groupby("Date").agg(
+    {
+        "Open": "mean",  # Average Open price
+        "High": "max",  # Highest High price
+        "Low": "min",  # Lowest Low price
+        "Vol.": "sum",  # Total Volume
+        "Change %": "mean",  # Average Change %
+        "Price": "mean",  # Average Global Price
+        "Commodity": lambda x: ", ".join(set(x))  # Unique list of commodities
+    }
+    ).reset_index()
+    
+    joined_dataset = joined_dataset.drop(columns=['Commodity'])
 
-    final_df['GlobalPrice'] = final_df['Price']
-    final_df.drop(columns=['Price'], inplace=True)
-    return final_df
+    return joined_dataset
 
 def get_google_trend_data() -> pd.DataFrame:
     """
@@ -123,6 +140,7 @@ def get_google_trend_data() -> pd.DataFrame:
     """
    
     commodities = os.listdir(GOOGLE_TREND_FODLER)
+    joined_dataset = None
     final_df = None
 
     for commodity in commodities:
@@ -143,10 +161,10 @@ def get_google_trend_data() -> pd.DataFrame:
             df = fill_missing_dates(df)
             df.drop(columns=[df.columns[1]], inplace=True)
 
-            final_df = df if final_df is None else pd.concat([final_df, df])
+            joined_dataset = df if joined_dataset is None else pd.concat([joined_dataset, df])
 
-    final_df.drop(columns=['minyak goreng'], inplace=True)
-    return final_df
+    
+    return joined_dataset
 
 def get_indonesia_commodity_price_data() -> pd.DataFrame:
     """
@@ -207,9 +225,14 @@ def get_dataset() -> pd.DataFrame:
 
     merged_df = pd.merge(global_commodity_dataset\
                         , google_trend_dataset, on="Date", how="outer") 
-    print(merged_df.columns)
-    print(merged_df.head())
 
-
+    return merged_df
+ 
 if __name__ == '__main__':
-    
+    dataset = get_dataset()
+    print(dataset.columns)
+    print(dataset.head())
+    print(dataset['Date'].value_counts() != 520)
+    # print(dataset['Date'].value_counts())
+    # print(dataset['Commodity'].value_counts())
+    # print(dataset['Province'].value_counts())
