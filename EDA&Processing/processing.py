@@ -4,7 +4,7 @@ Script for processing all the dataset
 TODOLIST:
 [X] Global Community Data
 [X] Google Trend
-[] Harga Bahan Pangan
+[X] Harga Bahan Pangan
 [X] Mata Uang
 [] Joined Dataset into One
 
@@ -170,11 +170,11 @@ def get_currency_exchange_data() -> pd.DataFrame:
     for file in csv_files:
         path = f'{CURRENCY_EXCHANGE_FOLDER}/{file}'
         file_description = file.split('=')[0]
-        print(file_description)
         df = pd.read_csv(path)
-        df.drop(columns=['Volume'])
+        df.drop(columns=['Volume'], inplace=True)
         df = clean_data(df)
         df = fill_missing_dates(df)
+        df['desc'] = file_description
         final_df = df if final_df is None else pd.concat([final_df, df])
     
     return final_df
