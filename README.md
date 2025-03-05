@@ -8,4 +8,4 @@ Owners:
 
 Notes:
 
-- To run the eda files you need to download the dataset from kaggle competition and put it in the same directory of this file.
+- To run the eda files you need to download the dataset from kaggle competition and put it in the same directory of this file. (https://www.kaggle.com/competitions/comodity-price-prediction-penyisihan-arkavidia-9)
