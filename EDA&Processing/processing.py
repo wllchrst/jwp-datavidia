@@ -10,8 +10,11 @@ TODOLIST:
 
 '''
 import os
+import warnings
 import pandas as pd
 import numpy as np
+
+warnings.filterwarnings('ignore')
 
 # CONSTANTS
 DATASET_PATH = "../comodity-price-prediction-penyisihan-arkavidia-9/"
@@ -87,9 +90,9 @@ def replace_zeros_with_mean(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def get_global_community_data() -> pd.DataFrame:
+def get_global_commodity_data() -> pd.DataFrame:
     """
-    Get Global Community Data joined nad processed
+    Get Global Commodity Data joined nad processed
 
     Returns:
         pd.DataFrame: Joined and processed DataFrame
@@ -104,8 +107,11 @@ def get_global_community_data() -> pd.DataFrame:
         df['Commodity'] = file_name
         clean_df = clean_data(df)
         clean_df = fill_missing_dates(clean_df)
+
         final_df = clean_df if final_df is None else pd.concat([final_df, clean_df], ignore_index=True)
-    
+
+    final_df['GlobalPrice'] = final_df['Price']
+    final_df.drop(columns=['Price'], inplace=True)
     return final_df
 
 def get_google_trend_data() -> pd.DataFrame:
@@ -122,7 +128,6 @@ def get_google_trend_data() -> pd.DataFrame:
     for commodity in commodities:
         commodity_folder = f'{GOOGLE_TREND_FODLER}/{commodity}'
         provinces = os.listdir(commodity_folder)
-        print(len(provinces))
 
         for province_file in provinces:
             dataset_path = f'{commodity_folder}/{province_file}'
@@ -130,13 +135,17 @@ def get_google_trend_data() -> pd.DataFrame:
             df = pd.read_csv(dataset_path)
             df['Commodity'] = commodity.lower()
             df['Province'] = province.lower()
+            price_column = df.columns[1]
+            df['GTPrice'] = df[price_column]
 
             df = replace_zeros_with_mean(df)
             df = clean_data(df)
             df = fill_missing_dates(df)
+            df.drop(columns=[df.columns[1]], inplace=True)
 
             final_df = df if final_df is None else pd.concat([final_df, df])
 
+    final_df.drop(columns=['minyak goreng'], inplace=True)
     return final_df
 
 def get_indonesia_commodity_price_data() -> pd.DataFrame:
@@ -179,6 +188,28 @@ def get_currency_exchange_data() -> pd.DataFrame:
     
     return final_df
 
+##################################################################
+
+def get_dataset() -> pd.DataFrame:
+    """Get dataset that can be use for training
+
+    Returns:
+        pd.DataFrame: dataset
+    """
+    global_commodity_dataset = get_global_commodity_data()
+    google_trend_dataset = get_google_trend_data()
+
+    print(global_commodity_dataset.columns)
+    print(google_trend_dataset.columns)
+
+    global_commodity_dataset['Date'] = pd.to_datetime(global_commodity_dataset['Date'])
+    google_trend_dataset['Date'] = pd.to_datetime(google_trend_dataset['Date'])
+
+    merged_df = pd.merge(global_commodity_dataset\
+                        , google_trend_dataset, on="Date", how="outer") 
+    print(merged_df.columns)
+    print(merged_df.head())
+
+
 if __name__ == '__main__':
-    dataset = get_currency_exchange_data()
-    print(dataset.head())
+    
