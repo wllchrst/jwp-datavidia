@@ -90,23 +90,23 @@ def replace_zeros_with_mean(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def get_global_commodity_data() -> pd.DataFrame:
+def get_global_commodity_data(folder_path=GLOBAL_COMMODITY_FOLDER, start_date='2022-01-01', end_date='2024-09-30') -> pd.DataFrame:
     """
     Get Global Commodity Data joined nad processed
 
     Returns:
         pd.DataFrame: Joined and processed DataFrame
     """
-    csv_files = os.listdir(GLOBAL_COMMODITY_FOLDER)
+    csv_files = os.listdir(folder_path)
     joined_dataset = None
 
     for csv in csv_files:
-        path = f'{GLOBAL_COMMODITY_FOLDER}/{csv}'
+        path = f'{folder_path}/{csv}'
         file_name = csv.split('Futures Historical Data')[0].strip()
         df = pd.read_csv(path)
         df['Commodity'] = file_name
         clean_df = clean_data(df)
-        clean_df = fill_missing_dates(clean_df)
+        clean_df = fill_missing_dates(clean_df, start_date=start_date, end_date=end_date)
 
         joined_dataset = clean_df if joined_dataset is None else pd.concat([joined_dataset, clean_df], ignore_index=True)
         
@@ -126,15 +126,13 @@ def get_global_commodity_data() -> pd.DataFrame:
         "Commodity": lambda x: ", ".join(set(x))  # Unique list of commodities
     }
     ).reset_index()
-    
-    joined_dataset['GlobalCommodityAveragePrice'] = joined_dataset['Price']
-    joined_dataset = joined_dataset.drop(columns=['Commodity', 'Price'])
-    
+
     for column in joined_dataset.columns:
         if column == 'Date':
             continue
         joined_dataset = joined_dataset.rename(columns={column: f'Global{column}'})
 
+    joined_dataset.drop(columns=['GlobalCommodity'], inplace=True)
     return joined_dataset
 
 def get_google_trend_data() -> pd.DataFrame:
@@ -169,18 +167,18 @@ def get_google_trend_data() -> pd.DataFrame:
     
     return joined_dataset
 
-def get_indonesia_commodity_price_data() -> pd.DataFrame:
+def get_indonesia_commodity_price_data(folder_path=COMMODITY_PRICE_FOLDER, start_date='2022-01-01', end_date='2024-09-30') -> pd.DataFrame:
     """
     Get Indonesia Commodity data all joined and processed
 
     Returns:
         pd.DataFrame: Joined and processed dataframe
     """
-    csv_files = os.listdir(COMMODITY_PRICE_FOLDER)
+    csv_files = os.listdir(folder_path)
     final_df = None
 
     for file in csv_files:
-        path = f'{COMMODITY_PRICE_FOLDER}/{file}'
+        path = f'{folder_path}/{file}'
         commodity_name = file.split(".")[0].lower()
         df = pd.read_csv(path)
         df['commodity'] = commodity_name
@@ -188,37 +186,39 @@ def get_indonesia_commodity_price_data() -> pd.DataFrame:
         final_df = df if final_df is None else pd.concat([final_df, df])
    
     final_df = clean_data(final_df)
-    final_df = fill_missing_dates(final_df)
+    final_df = fill_missing_dates(final_df, start_date, end_date)
 
     df_melted = final_df.melt(id_vars=["Date", "commodity"], var_name="province", value_name="price")
 
     return df_melted
 
-def get_currency_exchange_data() -> pd.DataFrame:
+def get_currency_exchange_data(folder_path=CURRENCY_EXCHANGE_FOLDER, start_date='2022-01-01', end_date='2024-09-30') -> pd.DataFrame:
     """
     Get Currency Exchange data all joined and processed
 
     Returns:
         pd.DataFrame: Joined and processed dataframe
     """
-    csv_files = os.listdir(CURRENCY_EXCHANGE_FOLDER)
+    csv_files = os.listdir(folder_path)
     final_df = None
 
     for file in csv_files:
-        path = f'{CURRENCY_EXCHANGE_FOLDER}/{file}'
+        path = f'{folder_path}/{file}'
         file_description = file.split('=')[0]
         df = pd.read_csv(path)
         df.drop(columns=['Volume'], inplace=True)
         df = clean_data(df)
-        df = fill_missing_dates(df)
+        df = fill_missing_dates(df, start_date, end_date)
         df['desc'] = file_description
         final_df = df if final_df is None else pd.concat([final_df, df])
 
     final_df['Date'] = pd.to_datetime(final_df['Date'])
+    
+    if 'Ajd Close' in final_df.columns:
+        final_df.drop(columns=['Adj Close'], inplace=True)
 
     final_df = final_df.groupby("Date").agg(
     {
-        "Adj Close": "mean",
         "Close": "mean",
         "High": "max",
         "Low": "min",
@@ -262,8 +262,35 @@ def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
         on='Date', how='left')
 
     return final_df
- 
-if __name__ == '__main__':
-    dataset = get_dataset()
 
-    dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
+def process_test_dataset() -> None:
+    folder = '../AdditionalDataset/GlobalCommodity'
+
+    for csv in os.listdir(folder):
+        path = f'{folder}/{csv}'
+        df = pd.read_csv(path, quotechar='"')
+        df.to_csv(path, index=False)
+
+def get_test_dataset() -> pd.DataFrame:
+    process_test_dataset()
+
+    global_data = get_global_commodity_data('../AdditionalDataset/GlobalCommodity/', start_date='2024-10-01', end_date='2024-12-31')
+    currency_data = get_currency_exchange_data('../AdditionalDataset/CurrencyExchange/', start_date='2024-10-01', end_date='2024-12-31')
+    commodity_test_dataset = get_indonesia_commodity_price_data('../comodity-price-prediction-penyisihan-arkavidia-9/Harga Bahan Pangan/test',
+                                                    start_date='2024-10-01', end_date='2024-12-31')
+    
+    commodity_test_dataset.drop(columns=['price'], inplace=True)
+    
+    commodity_with_global = pd.merge(commodity_test_dataset, global_data,
+                                       on='Date', how='left')
+    
+    merged = pd.merge(commodity_with_global, currency_data,
+                        on='Date', how='left')
+
+    return merged
+
+if __name__ == "__main__":
+    training_dataset = get_dataset()
+    test_dataset = get_test_dataset()
+    training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
+    test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
