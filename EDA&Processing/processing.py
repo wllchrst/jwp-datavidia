@@ -6,7 +6,7 @@ TODOLIST:
 [X] Google Trend
 [X] Harga Bahan Pangan
 [X] Mata Uang
-[] Joined Dataset into One
+[X] Joined Dataset into One
 
 '''
 import os
@@ -127,7 +127,13 @@ def get_global_commodity_data() -> pd.DataFrame:
     }
     ).reset_index()
     
-    joined_dataset = joined_dataset.drop(columns=['Commodity'])
+    joined_dataset['GlobalCommodityAveragePrice'] = joined_dataset['Price']
+    joined_dataset = joined_dataset.drop(columns=['Commodity', 'Price'])
+    
+    for column in joined_dataset.columns:
+        if column == 'Date':
+            continue
+        joined_dataset = joined_dataset.rename(columns={column: f'Global{column}'})
 
     return joined_dataset
 
@@ -137,11 +143,9 @@ def get_google_trend_data() -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: Joined and processed dataframe
-    """
-   
+    """   
     commodities = os.listdir(GOOGLE_TREND_FODLER)
     joined_dataset = None
-    final_df = None
 
     for commodity in commodities:
         commodity_folder = f'{GOOGLE_TREND_FODLER}/{commodity}'
@@ -162,7 +166,6 @@ def get_google_trend_data() -> pd.DataFrame:
             df.drop(columns=[df.columns[1]], inplace=True)
 
             joined_dataset = df if joined_dataset is None else pd.concat([joined_dataset, df])
-
     
     return joined_dataset
 
@@ -178,11 +181,18 @@ def get_indonesia_commodity_price_data() -> pd.DataFrame:
 
     for file in csv_files:
         path = f'{COMMODITY_PRICE_FOLDER}/{file}'
+        commodity_name = file.split(".")[0].lower()
         df = pd.read_csv(path)
+        df['commodity'] = commodity_name
 
         final_df = df if final_df is None else pd.concat([final_df, df])
+   
+    final_df = clean_data(final_df)
+    final_df = fill_missing_dates(final_df)
 
-    return final_df
+    df_melted = final_df.melt(id_vars=["Date", "commodity"], var_name="province", value_name="price")
+
+    return df_melted
 
 def get_currency_exchange_data() -> pd.DataFrame:
     """
@@ -203,36 +213,57 @@ def get_currency_exchange_data() -> pd.DataFrame:
         df = fill_missing_dates(df)
         df['desc'] = file_description
         final_df = df if final_df is None else pd.concat([final_df, df])
+
+    final_df['Date'] = pd.to_datetime(final_df['Date'])
+
+    final_df = final_df.groupby("Date").agg(
+    {
+        "Adj Close": "mean",
+        "Close": "mean",
+        "High": "max",
+        "Low": "min",
+        "Open": "mean",
+        "desc": lambda x: ", ".join(set(x))
+    }
+    ).reset_index()
+
+    final_df.drop(columns=['desc'], inplace=True)
     
+    for col in final_df.columns:
+        if col == 'Date':
+            continue
+        final_df = final_df.rename(columns={col: f'CE_{col}'})
+
     return final_df
 
 ##################################################################
 
-def get_dataset() -> pd.DataFrame:
+def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
     """Get dataset that can be use for training
 
     Returns:
         pd.DataFrame: dataset
     """
-    global_commodity_dataset = get_global_commodity_data()
-    google_trend_dataset = get_google_trend_data()
+    if mixed_with_google_trend:
+        google_trend_dataset = get_google_trend_data()
 
-    print(global_commodity_dataset.columns)
-    print(google_trend_dataset.columns)
+    global_commodity_dataset = get_global_commodity_data()
+    indonesia_commodity_price = get_indonesia_commodity_price_data()
+    currency_exchange_data = get_currency_exchange_data()
 
     global_commodity_dataset['Date'] = pd.to_datetime(global_commodity_dataset['Date'])
-    google_trend_dataset['Date'] = pd.to_datetime(google_trend_dataset['Date'])
+    indonesia_commodity_price['Date'] = pd.to_datetime(indonesia_commodity_price['Date'])
+    currency_exchange_data['Date'] = pd.to_datetime(currency_exchange_data['Date'])
 
-    merged_df = pd.merge(global_commodity_dataset\
-                        , google_trend_dataset, on="Date", how="outer") 
+    trend_with_indonesia = pd.merge(indonesia_commodity_price, global_commodity_dataset\
+        ,on='Date', how='left')
+    
+    final_df = pd.merge(trend_with_indonesia, currency_exchange_data,\
+        on='Date', how='left')
 
-    return merged_df
+    return final_df
  
 if __name__ == '__main__':
     dataset = get_dataset()
-    print(dataset.columns)
-    print(dataset.head())
-    print(dataset['Date'].value_counts() != 520)
-    # print(dataset['Date'].value_counts())
-    # print(dataset['Commodity'].value_counts())
-    # print(dataset['Province'].value_counts())
+
+    dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
