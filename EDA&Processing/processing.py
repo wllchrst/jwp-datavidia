@@ -19,7 +19,7 @@ warnings.filterwarnings('ignore')
 # CONSTANTS
 DATASET_PATH = "../comodity-price-prediction-penyisihan-arkavidia-9/"
 GLOBAL_COMMODITY_FOLDER = os.path.join(DATASET_PATH, "Global Commodity Price")
-GOOGLE_TREND_FODLER = os.path.join(DATASET_PATH, 'Google Trend')
+GOOGLE_TREND_FOLDER = os.path.join(DATASET_PATH, 'Google Trend')
 COMMODITY_PRICE_FOLDER = os.path.join(DATASET_PATH, 'Harga Bahan Pangan/train')
 CURRENCY_EXCHANGE_FOLDER = os.path.join(DATASET_PATH, 'Mata Uang')
 
@@ -137,16 +137,16 @@ def get_global_commodity_data(folder_path=GLOBAL_COMMODITY_FOLDER, start_date='2
 
 def get_google_trend_data() -> pd.DataFrame:
     """
-    Get Google Trend data all joined and processed
+    Get Google Trend data, process it, and calculate the average GTPrice per commodity per date.
 
     Returns:
-        pd.DataFrame: Joined and processed dataframe
-    """   
-    commodities = os.listdir(GOOGLE_TREND_FODLER)
+        pd.DataFrame: Dataframe containing average GTPrice per commodity per date.
+    """ 
+    commodities = os.listdir(GOOGLE_TREND_FOLDER)
     joined_dataset = None
 
     for commodity in commodities:
-        commodity_folder = f'{GOOGLE_TREND_FODLER}/{commodity}'
+        commodity_folder = f'{GOOGLE_TREND_FOLDER}/{commodity}'
         provinces = os.listdir(commodity_folder)
 
         for province_file in provinces:
@@ -165,7 +165,9 @@ def get_google_trend_data() -> pd.DataFrame:
 
             joined_dataset = df if joined_dataset is None else pd.concat([joined_dataset, df])
     
-    return joined_dataset
+    avg_trend_by_date = joined_dataset.groupby(['Date', 'Commodity'])['GTPrice'].mean().reset_index()
+    
+    return avg_trend_by_date
 
 def get_indonesia_commodity_price_data(folder_path=COMMODITY_PRICE_FOLDER, start_date='2022-01-01', end_date='2024-09-30') -> pd.DataFrame:
     """
@@ -290,7 +292,10 @@ def get_test_dataset() -> pd.DataFrame:
     return merged
 
 if __name__ == "__main__":
-    training_dataset = get_dataset()
-    test_dataset = get_test_dataset()
-    training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
-    test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
+    # training_dataset = get_dataset()
+    # test_dataset = get_test_dataset()
+    # training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
+    # test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
+
+    d = get_google_trend_data()
+    print(d)
