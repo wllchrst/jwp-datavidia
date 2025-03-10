@@ -25,6 +25,9 @@ CURRENCY_EXCHANGE_FOLDER = os.path.join(DATASET_PATH, 'Mata Uang')
 
 # Functions
 
+def get_first_word(name: str):
+    return name.split()[0].lower()
+
 def fill_missing_dates(df: pd.DataFrame, start_date="2022-01-01", end_date="2024-09-30") -> pd.DataFrame:
     """
     Ensures the dataset has all dates between start_date and end_date.
@@ -166,6 +169,7 @@ def get_google_trend_data() -> pd.DataFrame:
             joined_dataset = df if joined_dataset is None else pd.concat([joined_dataset, df])
     
     avg_trend_by_date = joined_dataset.groupby(['Date', 'Commodity'])['GTPrice'].mean().reset_index()
+    avg_trend_by_date['Commodity'] = avg_trend_by_date['Commodity'].apply(lambda x: x.split()[0] if len(x.split()) > 1 else x)
     
     return avg_trend_by_date
 
@@ -251,7 +255,7 @@ def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
     """
     if mixed_with_google_trend:
         google_trend_dataset = get_google_trend_data()
-        google_trend_dataset['Date'] = pd.to_datetime(google_trend_dataset['Date'])  # Ensure date format
+        google_trend_dataset['Date'] = pd.to_datetime(google_trend_dataset['Date'])
 
     global_commodity_dataset = get_global_commodity_data()
     indonesia_commodity_price = get_indonesia_commodity_price_data()
@@ -265,8 +269,19 @@ def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
     final_df = pd.merge(trend_with_indonesia, currency_exchange_data, on='Date', how='left')
 
     if mixed_with_google_trend:
-        final_df = pd.merge(final_df, google_trend_dataset, on='Date', how='left')
+        final_df['commodity_norm'] = final_df['commodity'].apply(get_first_word)
+        google_trend_dataset['Commodity_norm'] = google_trend_dataset['Commodity'].apply(get_first_word)
 
+        merged_df = final_df.merge(
+            google_trend_dataset[['Date', 'Commodity_norm', 'GTPrice']],
+            left_on=['Date', 'commodity_norm'],
+            right_on=['Date', 'Commodity_norm'],
+            how='left'
+        )
+        
+        merged_df.drop(columns=['commodity_norm', 'Commodity_norm'], inplace=True)
+
+        return merged_df
     return final_df
 
 def process_test_dataset() -> None:
@@ -296,9 +311,18 @@ def get_test_dataset() -> pd.DataFrame:
     return merged
 
 if __name__ == "__main__":
-    training_dataset = get_dataset()
-    test_dataset = get_test_dataset()
-    mixed_training_dataset = get_dataset(mixed_with_google_trend=True)
-    training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
-    test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
-    mixed_training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/mixed_training_dataset.csv")
+    # training_dataset = get_dataset()
+    # test_dataset = get_test_dataset()
+    # mixed_training_dataset = get_dataset(mixed_with_google_trend=True)
+    # training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
+    # test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
+    # mixed_training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/mixed_training_dataset.csv")
+    
+    # d = get_google_trend_data()
+    
+    # print(d.head())
+    
+    # print(d['Commodity'].value_counts())
+    m = get_dataset(mixed_with_google_trend=True)
+    print(m.head())
+    print(m.columns)
