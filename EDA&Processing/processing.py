@@ -241,13 +241,17 @@ def get_currency_exchange_data(folder_path=CURRENCY_EXCHANGE_FOLDER, start_date=
 ##################################################################
 
 def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
-    """Get dataset that can be use for training
+    """Get dataset that can be used for training.
+
+    Args:
+        mixed_with_google_trend (bool): Whether to include Google Trends data.
 
     Returns:
-        pd.DataFrame: dataset
+        pd.DataFrame: Merged dataset.
     """
     if mixed_with_google_trend:
         google_trend_dataset = get_google_trend_data()
+        google_trend_dataset['Date'] = pd.to_datetime(google_trend_dataset['Date'])  # Ensure date format
 
     global_commodity_dataset = get_global_commodity_data()
     indonesia_commodity_price = get_indonesia_commodity_price_data()
@@ -257,11 +261,11 @@ def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
     indonesia_commodity_price['Date'] = pd.to_datetime(indonesia_commodity_price['Date'])
     currency_exchange_data['Date'] = pd.to_datetime(currency_exchange_data['Date'])
 
-    trend_with_indonesia = pd.merge(indonesia_commodity_price, global_commodity_dataset\
-        ,on='Date', how='left')
-    
-    final_df = pd.merge(trend_with_indonesia, currency_exchange_data,\
-        on='Date', how='left')
+    trend_with_indonesia = pd.merge(indonesia_commodity_price, global_commodity_dataset, on='Date', how='left')
+    final_df = pd.merge(trend_with_indonesia, currency_exchange_data, on='Date', how='left')
+
+    if mixed_with_google_trend:
+        final_df = pd.merge(final_df, google_trend_dataset, on='Date', how='left')
 
     return final_df
 
@@ -292,10 +296,9 @@ def get_test_dataset() -> pd.DataFrame:
     return merged
 
 if __name__ == "__main__":
-    # training_dataset = get_dataset()
-    # test_dataset = get_test_dataset()
-    # training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
-    # test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
-
-    d = get_google_trend_data()
-    print(d)
+    training_dataset = get_dataset()
+    test_dataset = get_test_dataset()
+    mixed_training_dataset = get_dataset(mixed_with_google_trend=True)
+    training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/training_dataset.csv")
+    test_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/testing_dataset.csv")
+    mixed_training_dataset.to_csv("../comodity-price-prediction-penyisihan-arkavidia-9/mixed_training_dataset.csv")
