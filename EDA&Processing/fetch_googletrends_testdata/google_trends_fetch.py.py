@@ -3,13 +3,7 @@ import pandas as pd
 from time import sleep
 from random import randint
 
-requests_args = {
-'headers': {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-    }
-}
-
-pytrends = TrendReq(retries=3, hl='id', tz=420, requests_args=requests_args)
+pytrends = TrendReq(hl='id', tz=420)
 
 # Daftar bahan pangan
 keywords = [
@@ -17,7 +11,6 @@ keywords = [
     "cabai merah", "cabai rawit", "daging", "daging ayam", "daging sapi",
     "gula", "minyak goreng", "telur ayam", "tepung", "tepung terigu"
 ]
-
 
 timeframe = "2024-10-01 2024-12-31"
 geo = "ID"
@@ -43,8 +36,8 @@ while len(keywords) > 0:
         except Exception as e:
             print(f"❌ Error saat mengambil data {keyword}: {e}")
 
-    print('Delaying 10 seconds')
-    sleep(10)
+    print('Delaying 30 seconds')
+    sleep(30)
 
 trends_df = pd.DataFrame(all_data)
 
