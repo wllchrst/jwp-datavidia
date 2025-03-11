@@ -171,6 +171,8 @@ def get_google_trend_data() -> pd.DataFrame:
     avg_trend_by_date = joined_dataset.groupby(['Date', 'Commodity'])['GTPrice'].mean().reset_index()
     avg_trend_by_date['Commodity'] = avg_trend_by_date['Commodity'].apply(lambda x: x.split()[0] if len(x.split()) > 1 else x)
     
+    avg_trend_by_date = avg_trend_by_date.groupby(['Date', 'Commodity'], as_index=False)['GTPrice'].mean()
+    
     return avg_trend_by_date
 
 def get_indonesia_commodity_price_data(folder_path=COMMODITY_PRICE_FOLDER, start_date='2022-01-01', end_date='2024-09-30') -> pd.DataFrame:
@@ -242,7 +244,21 @@ def get_currency_exchange_data(folder_path=CURRENCY_EXCHANGE_FOLDER, start_date=
 
     return final_df
 
+def get_test_google_trend(path='../AdditionalDataset/GoogleTrends/google_trends_test_data.csv') -> pd.DataFrame:
+    df = pd.read_csv(path)
+    
+    df = df.melt(id_vars=['date'], var_name='commodity', value_name='value')
+    df = df.groupby(['date', 'commodity'])['value'].mean().reset_index()
+    df['commodity'] = df['commodity'].apply(lambda x: x.split()[0] if len(x.split()) > 1 else x)
+    
+    df = df.rename(columns={"date": "Date", "value": "GTPrice"})
+    df['Date'] = pd.to_datetime(df['Date'])
+    
+    df = df.groupby(['Date', 'commodity'], as_index=False)['GTPrice'].mean()
+    
+    return df
 ##################################################################
+
 
 def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
     """Get dataset that can be used for training.
@@ -270,16 +286,16 @@ def get_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
 
     if mixed_with_google_trend:
         final_df['commodity_norm'] = final_df['commodity'].apply(get_first_word)
-        google_trend_dataset['Commodity_norm'] = google_trend_dataset['Commodity'].apply(get_first_word)
+        google_trend_dataset['commodity_norm'] = google_trend_dataset['Commodity'].apply(get_first_word)
 
         merged_df = final_df.merge(
-            google_trend_dataset[['Date', 'Commodity_norm', 'GTPrice']],
+            google_trend_dataset[['Date', 'commodity_norm', 'GTPrice']],
             left_on=['Date', 'commodity_norm'],
-            right_on=['Date', 'Commodity_norm'],
+            right_on=['Date', 'commodity_norm'],
             how='left'
         )
         
-        merged_df.drop(columns=['commodity_norm', 'Commodity_norm'], inplace=True)
+        merged_df.drop(columns=['commodity_norm', 'commodity_norm'], inplace=True)
 
         return merged_df
     return final_df
@@ -292,8 +308,10 @@ def process_test_dataset() -> None:
         df = pd.read_csv(path, quotechar='"')
         df.to_csv(path, index=False)
 
-def get_test_dataset() -> pd.DataFrame:
+def get_test_dataset(mixed_with_google_trend=False) -> pd.DataFrame:
     process_test_dataset()
+    if mixed_with_google_trend:
+        google_trend_dataset = get_test_google_trend()
 
     global_data = get_global_commodity_data('../AdditionalDataset/GlobalCommodity/', start_date='2024-10-01', end_date='2024-12-31')
     currency_data = get_currency_exchange_data('../AdditionalDataset/CurrencyExchange/', start_date='2024-10-01', end_date='2024-12-31')
@@ -301,12 +319,28 @@ def get_test_dataset() -> pd.DataFrame:
                                                     start_date='2024-10-01', end_date='2024-12-31')
     
     commodity_test_dataset.drop(columns=['price'], inplace=True)
-    
     commodity_with_global = pd.merge(commodity_test_dataset, global_data,
                                        on='Date', how='left')
     
     merged = pd.merge(commodity_with_global, currency_data,
                         on='Date', how='left')
+    
+    if mixed_with_google_trend:
+        print(f'merged: {merged.columns}')
+        print(f'google trend: {google_trend_dataset.columns}')
+        merged['commodity_norm'] = merged['commodity'].apply(get_first_word)
+        google_trend_dataset['commodity_norm'] = google_trend_dataset['commodity'].apply(get_first_word)
+
+        merged_df = merged.merge(
+            google_trend_dataset[['Date', 'commodity_norm', 'GTPrice']],
+            left_on=['Date', 'commodity_norm'],
+            right_on=['Date', 'commodity_norm'],
+            how='left'
+        )
+        
+        merged_df.drop(columns=['commodity_norm', 'commodity_norm'], inplace=True)
+
+        return merged_df
 
     return merged
 
@@ -320,9 +354,14 @@ if __name__ == "__main__":
     
     # d = get_google_trend_data()
     
-    # print(d.head())
+    # d = get_test_google_trend()
     
-    # print(d['Commodity'].value_counts())
-    m = get_dataset(mixed_with_google_trend=True)
-    print(m.head())
-    print(m.columns)
+    d = get_test_dataset(True)
+    x = get_dataset(True)
+    
+    print(d.head(20))
+    
+    print(x.head(20))
+    
+    x.to_csv('../AdditionalDataset/training_dset_with_gt.csv')
+    d.to_csv('../AdditionalDataset/test_dset_with_gt.csv')
